@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import apis
 
 from xlog import getLogger
@@ -58,12 +57,13 @@ def load_config():
 
     config.set_var("dns_bind_ip", "127.0.0.1")
     config.set_var("dns_port", 53)
+    config.set_var("dns_backup_port", 8053)
 
     config.set_var("proxy_bind_ip", "127.0.0.1")
     config.set_var("proxy_port", 8086)
 
     config.set_var("dns_cache_size", 200)
-    config.set_var("pip_cache_size", 16*1024)
+    config.set_var("pip_cache_size", 32*1024)
     config.set_var("ip_cache_size", 1000)
     config.set_var("dns_ttl", 24*3600)
     config.set_var("direct_split_SNI", 1)
@@ -72,6 +72,8 @@ def load_config():
     config.set_var("country_code", "CN")
     config.set_var("auto_direct", True)
     config.set_var("auto_gae", True)
+    config.set_var("enable_fake_ca", True)
+    config.set_var("block_advertisement", True)
 
     config.load()
     if config.PROXY_ENABLE:
@@ -122,15 +124,17 @@ def run(args):
     g.proxy_server = simple_http_server.HTTPServer((listen_ip, g.config.proxy_port),
                                                    proxy_handler.ProxyServer, logger=xlog)
     g.proxy_server.start()
-    xlog.info("Proxy server listen:%s:%d.", g.config.proxy_bind_ip, g.config.proxy_port)
+    xlog.info("Proxy server listen:%s:%d.", listen_ip, g.config.proxy_port)
 
     allow_remote = args.get("allow_remote", 0)
     if allow_remote:
         listen_ip = "0.0.0.0"
     else:
         listen_ip = g.config.dns_bind_ip
-    g.dns_srv = dns_server.DnsServer(bind_ip=listen_ip, port=g.config.dns_port,
-                                   ttl=g.config.dns_ttl)
+    g.dns_srv = dns_server.DnsServer(
+        bind_ip=listen_ip, port=g.config.dns_port,
+        backup_port=g.config.dns_backup_port,
+        ttl=g.config.dns_ttl)
     ready = True
     g.dns_srv.server_forever()
 
