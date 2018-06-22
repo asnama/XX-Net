@@ -64,6 +64,7 @@ import urlparse
 import threading
 import zlib
 import traceback
+from mimetypes import guess_type
 
 from front import front
 from xlog import getLogger
@@ -309,6 +310,8 @@ def request_gae_server(headers, body, url, timeout):
         response.worker.close("ip not support GAE")
         raise GAE_Exception(602, "ip not support GAE")
 
+    response.gps = response.getheader("x-server", "")
+
     appid = response.ssl_sock.host.split(".")[0]
 
     if response.status == 404:
@@ -317,7 +320,7 @@ def request_gae_server(headers, body, url, timeout):
             appid, response.ssl_sock.ip)
         # google_ip.report_connect_closed(response.ssl_sock.ip, "appid not exist")
         response.worker.close("appid not exist:%s" % appid)
-        raise GAE_Exception(603, "appid not support GAE")
+        raise GAE_Exception(603, "appid not exist %s" % appid)
 
     if response.status == 503:
         xlog.warning('APPID %r out of Quota, remove it. %s',
@@ -378,9 +381,12 @@ def request_gae_proxy(method, url, headers, body, timeout=None):
     error_msg = []
 
     if not timeout:
-        timeouts = [5, 20, 30]
+        timeouts = [15, 20, 30]
     else:
         timeouts = [timeout]
+
+    if body:
+        timeouts = [timeout + 10 for timeout in timeouts]
 
     for timeout in timeouts:
         request_headers, request_body = pack_request(method, url, headers, body, timeout)
@@ -434,7 +440,7 @@ def request_gae_proxy(method, url, headers, body, timeout=None):
     raise GAE_Exception(600, b"".join(error_msg))
 
 
-def handler(method, url, headers, body, wfile):
+def handler(method, host, url, headers, body, wfile):
     if not url.startswith("http") and not url.startswith("HTTP"):
         xlog.error("gae:%s", url)
         return
@@ -521,6 +527,19 @@ def handler(method, url, headers, body, wfile):
             continue
         response_headers[key] = value
 
+    if (response.status == 503 and
+            response_headers.get('Server') == 'HTTP server (unknown)' and
+            host.endswith(front.config.GOOGLE_ENDSWITH) and
+            host not in front.config.HOSTS_DIRECT):
+        if host in front.config.HOSTS_GAE:
+            try:
+                hosts_gae = list(front.config.HOSTS_GAE)
+                hosts_gae.remove(host)
+                front.config.HOSTS_GAE = tuple(hosts_gae)
+            except ValueError:
+                pass
+        front.config.HOSTS_DIRECT += host,
+
     response_headers["Persist"] = ""
     response_headers["Connection"] = "Persist"
 
@@ -529,19 +548,6 @@ def handler(method, url, headers, body, wfile):
             response_headers['Content-Length'] = response_headers['X-Head-Content-Length']
         del response_headers['X-Head-Content-Length']
         # 只是获取头
-
-    try:
-        wfile.write("HTTP/1.1 %d %s\r\n" % (response.status, response.reason))
-        for key in response_headers:
-            value = response_headers[key]
-            send_header(wfile, key, value)
-            #xlog.debug("Head- %s: %s", key, value)
-        wfile.write("\r\n")
-        wfile.flush()
-        # 写入除body外内容
-    except Exception as e:
-        xlog.info("gae_handler.handler send response fail. e:%r %s", e, url)
-        return
 
     content_length = int(response.headers.get('Content-Length', 0))
     content_range = response.headers.get('Content-Range', '')
@@ -558,7 +564,117 @@ def handler(method, url, headers, body, wfile):
     else:
         body_length = end - start + 1
 
-    body_sended = 0
+    def send_response_headers():
+        wfile.write("HTTP/1.1 %d %s\r\n" % (response.status, response.reason))
+        for key in response_headers:
+            value = response_headers[key]
+            send_header(wfile, key, value)
+            # xlog.debug("Head- %s: %s", key, value)
+        wfile.write("\r\n")
+        wfile.flush()
+        # 写入除body外内容
+
+    def is_text_content_type(content_type):
+        mct, _, sct = content_type.partition('/')
+        if mct == 'text':
+            return True
+        if mct == 'application':
+            sct = sct.split(';', 1)[0]
+            if (sct in ('json', 'javascript', 'x-www-form-urlencoded') or
+                    sct.endswith(('xml', 'script')) or
+                    sct.startswith(('xml', 'rss', 'atom'))):
+                return True
+        return False
+
+    data0 = ""
+    content_type = response_headers.get("Content-Type", "")
+    content_encoding = response_headers.get("Content-Encoding", "")
+    if body_length and \
+            content_encoding == "gzip" and \
+            response.gps < "GPS 3.3.2" and \
+            is_text_content_type(content_type):
+        url_guess_type = guess_type(url)[0]
+        if url_guess_type is None or is_text_content_type(url_guess_type):
+            # try decode and detect type
+
+            min_block = min(1024, body_length)
+            data0 = response.task.read(min_block)
+            if not data0 or len(data0) == 0:
+                xlog.warn("recv body fail:%s", url)
+                return
+
+            if isinstance(data0, memoryview):
+                data0 = data0.tobytes()
+
+            gzip_decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            decoded_data0 = gzip_decompressor.decompress(data0)
+
+            deflate_decompressor = zlib.decompressobj(-zlib.MAX_WBITS)
+            decoded_data1 = None
+
+            if len(decoded_data0) > 1:
+                CMF, FLG = bytearray(decoded_data0[:2])
+                if CMF & 0x0F == 8 and CMF & 0x80 == 0 and ((CMF << 8) + FLG) % 31 == 0:
+                    decoded_data1 = deflate_decompressor.decompress(decoded_data0[2:])
+
+            if decoded_data1 is None and len(decoded_data0) > 0:
+                try:
+                    decoded_data1 = deflate_decompressor.decompress(decoded_data0)
+                    if deflate_decompressor.unused_data != '':
+                        decoded_data1 = None
+                except:
+                    pass
+
+            if decoded_data1:
+                try:
+                    response_headers.pop("Content-Length", None)
+
+                    if "deflate" in headers.get("Accept-Encoding", ""):
+                        # return deflate data if accept deflate
+                        response_headers["Content-Encoding"] = "deflate"
+
+                        send_response_headers()
+                        while True:
+                            wfile._sock.sendall(decoded_data0)
+                            if response.task.body_readed >= body_length:
+                                break
+                            data = response.task.read().tobytes()
+                            decoded_data0 = gzip_decompressor.decompress(data)
+                        xlog.info("GAE send ungziped deflate data to browser t:%d s:%d %s %s %s", (time.time() - request_time) * 1000, content_length, method,
+                                  url, response.task.get_trace())
+
+                    else:
+                        # inflate data and send
+                        del response_headers["Content-Encoding"]
+
+                        send_response_headers()
+                        while True:
+                            wfile._sock.sendall(decoded_data1)
+                            if response.task.body_readed >= body_length:
+                                break
+                            data = response.task.read().tobytes()
+                            decoded_data0 = gzip_decompressor.decompress(data)
+                            decoded_data1 = deflate_decompressor.decompress(decoded_data0)
+                        xlog.info("GAE send ungziped data to browser t:%d s:%d %s %s %s", (time.time() - request_time) * 1000, content_length, method,
+                                  url, response.task.get_trace())
+
+                    return
+                except Exception as e:
+                    xlog.info("gae_handler.handler try decode and send response fail. e:%r %s", e, url)
+                    return
+
+    try:
+        send_response_headers()
+
+        if data0:
+            wfile._sock.sendall(data0)
+            body_sended = len(data0)
+        else:
+            body_sended = 0
+    except Exception as e:
+        xlog.info("gae_handler.handler send response fail. e:%r %s", e, url)
+        return
+
     while True:
         # 可能分片发给客户端
         if body_sended >= body_length:

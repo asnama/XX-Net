@@ -32,6 +32,9 @@ msgstr "检查 IP"
 msgid "IPv6 Tunnel"
 msgstr "IPv6 隧道"
 
+msgid "Teredo Tunnel"
+msgstr "Teredo 隧道"
+
 msgid "GAEProxy Advanced Configuration"
 msgstr "GAEProxy 高级配置"
 
@@ -131,6 +134,33 @@ msgstr "当前状态："
 msgid "idle"
 msgstr "空闲"
 
+msgid "unknown"
+msgstr "未知"
+
+msgid "offline"
+msgstr "离线（无法连接）"
+
+msgid "probe"
+msgstr "正在检查网络"
+
+msgid "qualified"
+msgstr "合格（已连接）"
+
+msgid "dormant"
+msgstr "休眠（未连接）"
+
+msgid "enabled"
+msgstr "已启用"
+
+msgid "disabled"
+msgstr "已禁用"
+
+msgid "Script is running, please retry later."
+msgstr "脚本正在运行，请稍后再试。"
+
+msgid ", are you sure to continue?"
+msgstr "，你确定要继续吗？"
+
 msgid "working"
 msgstr "工作"
 
@@ -218,11 +248,38 @@ msgstr "个IP。"
 msgid "Failed importing IP."
 msgstr "导入IP失败。"
 
+msgid "Tips"
+msgstr "提示"
+
+msgid "Enable operations usually only needs to be performed once at each device."
+msgstr "启用操作通常只需要在每台设备上执行一次。"
+
+msgid "After changing the server, it takes 10-90 seconds to successfully establish a new teredo tunnel."
+msgstr "更换服务器后，需要等待 10-90 秒钟才会成功建立新的 teredo 隧道。"
+
+msgid "To use teredo tunnel, win user must keep firewall enabled, and allow outbound."
+msgstr "Win 用户使用 teredo 必须保持防火墙开启，出站放行即可。"
+
+msgid "Non-win users can also use the test button to get the fastest server for change manually."
+msgstr "非 win 用户也可以使用测试按钮来获取响应最快的服务器，以便手动更换。"
+
 msgid "Enable"
 msgstr "启用"
 
 msgid "Disable"
 msgstr "禁用"
+
+msgid "Test teredo"
+msgstr "测试 teredo"
+
+msgid "Test teredo usability only"
+msgstr "仅测试 teredo 可用性"
+
+msgid "Test teredo server only"
+msgstr "仅测试 teredo 服务器"
+
+msgid "Change teredo server"
+msgstr "更换 teredo 服务器"
 
 msgid "Running ..."
 msgstr "正在执行..."
@@ -247,6 +304,9 @@ msgstr "读取日志失败。"
 
 msgid "Auto-adjust scan thread count"
 msgstr "自动调整扫描线程数"
+
+msgid "How enable"
+msgstr "如何开启"
 
 msgid "Help"
 msgstr "帮助"
@@ -283,6 +343,9 @@ msgstr "IPv4 状态"
 
 msgid "IPv6 Status"
 msgstr "IPv6 状态"
+
+msgid "try repair"
+msgstr "尝试修复"
 
 msgid "IPv4 Number"
 msgstr "IPv4 IP数"
@@ -333,7 +396,7 @@ msgid "IP mode"
 msgstr "IP模式"
 
 msgid "LAN proxy"
-msgstr "局域网代理"
+msgstr "前置代理"
 
 msgid "working AppIDs"
 msgstr "工作AppID"

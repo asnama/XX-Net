@@ -27,17 +27,18 @@ class Config(ConfigBase):
 
         # host rules
         self.set_var("hosts_direct", [
+            "play.google.com",
             "scholar.google.com",
             "scholar.google.com.hk",
-            "appengine.google.com",
-            "accounts.google.com"
+            "appengine.google.com"
         ])
         self.set_var("hosts_direct_endswith", [
             ".appspot.com",
         ])
 
         self.set_var("hosts_gae", [
-            "mail.google.com"
+            "mail.google.com",
+            "accounts.google.com"
         ])
         self.set_var("hosts_gae_endswith", [
 
@@ -62,7 +63,7 @@ class Config(ConfigBase):
         self.set_var("google_endswith", [
             ".youtube.com",
             ".googlevideo.com",
-            "..googleapis.com",
+            ".googleapis.com",
             ".google.com",
             ".googleusercontent.com",
             ".ytimg.com",
@@ -102,6 +103,7 @@ class Config(ConfigBase):
         self.set_var("http2_target_concurrent", 1)
         self.set_var("http2_max_timeout_tasks", 1)
         self.set_var("http2_timeout_active", 0)
+        self.set_var("http2_ping_min_interval", 30)
 
         # connect_manager
         self.set_var("https_max_connect_thread", 10)
@@ -154,13 +156,13 @@ hj5J/kicXpbBQclS4uyuQ5iSOGKcuCRt8ralqREJXuRsnLZo0sIT680+VQ==
 '''
         ])
         self.set_var("check_commonname", "Google")
-        self.set_var("min_intermediate_CA", 3)
+        self.set_var("min_intermediate_CA", 2)
         self.set_var("support_http2", 1)
 
         # ip_manager
         self.set_var("max_scan_ip_thread_num", 10)
         self.set_var("max_good_ip_num", 500)
-        self.set_var("target_handshake_time", 200)
+        self.set_var("target_handshake_time", 600)
 
         # ip source
         self.set_var("use_ipv6", "auto") #force_ipv4/force_ipv6/auto
